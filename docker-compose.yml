@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  graph-mailer:
+    image: graph-mailer:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Microsoft Graph Configuration
+      - GRAPH_TENANT_ID=${GRAPH_TENANT_ID}
+      - GRAPH_CLIENT_ID=${GRAPH_CLIENT_ID}
+      - GRAPH_CLIENT_SECRET=${GRAPH_CLIENT_SECRET}
+      
+      # Security Configuration
+      - GRAPH_MAILER_API_KEY=${GRAPH_MAILER_API_KEY}
+      - SPRING_PROFILES_ACTIVE=api-key
+      
+      # Optional: Override defaults
+      - MAIL_MAX_ATTACHMENT_BYTES=5242880
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=30
+      
+      # Logging Configuration
+      - LOGGING_LEVEL_COM_GRAPHMAILER=INFO
+      - LOGGING_LEVEL_ROOT=WARN
+      
+      # Management endpoints
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+    
+    # Optional: Mount logs directory
+    volumes:
+      - ./logs:/app/logs
+    
+    # Resource limits (adjust as needed)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+networks:
+  default:
+    name: graph-mailer-network

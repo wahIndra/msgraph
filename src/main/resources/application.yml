@@ -1,0 +1,169 @@
+server:
+  port: 8080
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+spring:
+  application:
+    name: graph-mailer
+  profiles:
+    active: dev,api-key
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+    info:
+      enabled: true
+  health:
+    diskspace:
+      enabled: true
+    ping:
+      enabled: true
+
+# Microsoft Graph Configuration
+graph:
+  tenant-id: ${GRAPH_TENANT_ID:}
+  client-id: ${GRAPH_CLIENT_ID:}
+  client-secret: ${GRAPH_CLIENT_SECRET:}
+  scopes: "https://graph.microsoft.com/.default"
+  request:
+    timeout-ms: 10000
+    max-retries: 3
+    retry-base-delay-ms: 300
+
+# Mail Service Configuration
+mail:
+  default-from-upn: "noreply@yourtenant.com"
+  save-to-sent-items: true
+  max-attachment-bytes: 5242880 # 5MB
+  allowed-recipient-domains:
+    - "yourtenant.com"
+    - "gmail.com"
+    - "outlook.com"
+  allowed-sender-upns:
+    - "noreply@yourtenant.com"
+    - "ops@yourtenant.com"
+
+# Security Configuration
+security:
+  inbound:
+    mode: api-key # api-key | oauth2
+    api-key-header: X-API-Key
+    api-key-value: ${GRAPH_MAILER_API_KEY:}
+  cors:
+    allowed-origins: []
+
+# OAuth2 Resource Server (when mode = oauth2)
+spring.security.oauth2.resourceserver:
+  jwt:
+    issuer-uri: ${JWT_ISSUER_URI:}
+    jwk-set-uri: ${JWT_JWK_SET_URI:}
+
+# Logging Configuration
+logging:
+  level:
+    com.graphmailer: INFO
+    com.microsoft.graph: WARN
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+
+# OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.graphmailer: DEBUG
+    org.springframework.web: DEBUG
+
+mail:
+  allowed-recipient-domains:
+    - "yourtenant.com"
+    - "gmail.com"
+    - "outlook.com"
+    - "example.com"
+
+security:
+  inbound:
+    api-key-value: devkey
+  cors:
+    allowed-origins:
+      - "http://localhost:3000"
+      - "http://localhost:8080"
+
+---
+# Production Profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.graphmailer: INFO
+    org.springframework.web: WARN
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+security:
+  cors:
+    allowed-origins: []
+
+---
+# API Key Authentication Profile
+spring:
+  config:
+    activate:
+      on-profile: api-key
+
+security:
+  inbound:
+    mode: api-key
+
+---
+# OAuth2 Authentication Profile
+spring:
+  config:
+    activate:
+      on-profile: oauth2
+
+security:
+  inbound:
+    mode: oauth2

@@ -1,0 +1,91 @@
+# Mock/Demo Profile Configuration
+# This profile allows running the application without Azure Graph API credentials
+
+# Use simple logging configuration for mock mode
+logging:
+  config: classpath:logback-mock.xml
+  level:
+    com.graphmailer: DEBUG
+
+# Application Mode (mock = no real Graph API calls)
+app:
+  mode: mock
+
+# Mock Graph Properties (not used but required for configuration binding)
+graph:
+  tenant-id: mock-tenant-id
+  client-id: mock-client-id
+  client-secret: mock-client-secret
+  scopes: "https://graph.microsoft.com/.default"
+  request:
+    timeout-ms: 30000
+    max-retries: 3
+    retry-base-delay-ms: 1000
+
+# Mail Configuration (still used for validation)
+mail:
+  allowed-recipient-domains:
+    - "example.com"
+    - "test.com"
+    - "localhost"
+    - "mock.com"
+    - "example.com"
+  allowed-sender-upns:
+    - "noreply@example.com"
+    - "test@example.com"
+    - "demo@mock.com"
+    - "noreply@example.com"
+    - "test@example.com"
+  max-attachment-bytes: 5242880 # 5MB
+
+# Security Configuration
+security:
+  inbound:
+    mode: api-key
+    api-key-header: X-API-Key
+    api-key-value: demo-api-key-12345
+  cors:
+    allowed-origins: "*"
+    allowed-methods: "GET,POST,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: false
+
+# Spring Configuration
+spring:
+  application:
+    name: graph-mailer-mock
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://mock-jwk-endpoint.example.com/.well-known/jwks.json
+
+# Rate Limiting
+rate-limit:
+  requests-per-minute: 60 # More lenient for demo
+  enabled: true
+
+# Server Configuration
+server:
+  port: 8080
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+
+# Custom application info for /actuator/info
+info:
+  app:
+    name: "Graph Mailer"
+    version: "1.0.0"
+    mode: "MOCK/DEMO"
+    description: "Mock mode - No real emails will be sent"
+    build:
+      time: "@maven.build.timestamp@"
+      version: "@project.version@"

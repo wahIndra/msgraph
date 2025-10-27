@@ -1,0 +1,47 @@
+# Docker ignore file for Graph Mailer
+# Ignore build artifacts
+target/
+*.jar
+*.war
+*.ear
+
+# Ignore IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore temporary files
+*.tmp
+*.swp
+*.swo
+
+# Ignore Maven wrapper files (we copy them explicitly)
+.mvn/wrapper/maven-wrapper.jar
+
+# Ignore Git files
+.git/
+.gitignore
+
+# Ignore documentation
+docs/
+*.md
+LICENSE
+
+# Ignore CI/CD files
+.gitlab-ci.yml
+.github/
+deploy/
+
+# Ignore test files for production builds
+src/test/

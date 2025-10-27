@@ -1,0 +1,241 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: graph-mailer
+  labels:
+    app: graph-mailer
+    environment: production
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: graph-mailer-secrets
+  namespace: graph-mailer
+type: Opaque
+data:
+  # Base64 encoded values - replace with actual values
+  graph-tenant-id: # Base64 encoded tenant ID
+  graph-client-id: # Base64 encoded client ID
+  graph-client-secret: # Base64 encoded client secret
+  graph-mailer-api-key: # Base64 encoded API key
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graph-mailer-config
+  namespace: graph-mailer
+data:
+  application.yml: |
+    server:
+      port: 8080
+
+    spring:
+      profiles:
+        active: prod,api-key
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,metrics
+
+    mail:
+      allowed-recipient-domains:
+        - "example.com"
+        - "gmail.com"
+        - "outlook.com"
+      allowed-sender-upns:
+        - "noreply@example.com"
+        - "system@example.com"
+
+    security:
+      inbound:
+        mode: api-key
+      cors:
+        allowed-origins: []
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: graph-mailer-sa
+  namespace: graph-mailer
+automountServiceAccountToken: false
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-mailer
+  namespace: graph-mailer
+  labels:
+    app: graph-mailer
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: graph-mailer
+  template:
+    metadata:
+      labels:
+        app: graph-mailer
+    spec:
+      serviceAccountName: graph-mailer-sa
+      automountServiceAccountToken: false
+      containers:
+        - name: graph-mailer
+          image: your-registry/graph-mailer:1.0.0
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: GRAPH_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: graph-mailer-secrets
+                  key: graph-tenant-id
+            - name: GRAPH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: graph-mailer-secrets
+                  key: graph-client-id
+            - name: GRAPH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: graph-mailer-secrets
+                  key: graph-client-secret
+            - name: GRAPH_MAILER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: graph-mailer-secrets
+                  key: graph-mailer-api-key
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/application.yml
+              subPath: application.yml
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+              ephemeral-storage: "1Gi"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+              ephemeral-storage: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config-volume
+          configMap:
+            name: graph-mailer-config
+      securityContext:
+        fsGroup: 1001
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graph-mailer-service
+  namespace: graph-mailer
+  labels:
+    app: graph-mailer
+spec:
+  selector:
+    app: graph-mailer
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graph-mailer-ingress
+  namespace: graph-mailer
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - graph-mailer.example.com
+      secretName: graph-mailer-tls
+  rules:
+    - host: graph-mailer.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: graph-mailer-service
+                port:
+                  number: 80
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: graph-mailer-hpa
+  namespace: graph-mailer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: graph-mailer
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: graph-mailer-pdb
+  namespace: graph-mailer
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: graph-mailer
